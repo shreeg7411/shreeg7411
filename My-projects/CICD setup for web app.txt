@@ -1,0 +1,137 @@
+In BitBucket: 
+1.Created repository for eflot folder
+2.Pushed the source code to repo from local server
+3.Added variables in repo settings
+ Go to the eflotRepo>click repository settings>click repository variables>add Name and Value of variables in Bitbucket-pipeline.yml file>click add
+4.Added a webhook
+5.Added Environments: Local-server, demo in test environment
+                                           Staging in staging environment
+                                           Master in Production Environment 
+                               
+In AWS Console: Log in
+1.Create S3 Bucket
+    Search for S3>click create bucket>Bucket type General purpose>give bucket name> enable 
+    versioning >Rest keep as default>click create bucket.
+2.Create an EC2 instance
+  a. Ec2=launch instance=name=ubuntu IAM=t2.micro=keypair=defaultVPC=anablePublicIp=launchInstance=(clickOnInstance=Actions=ManageTags=ProvideName&Tag=Save)Optional
+3.Create a role and attach to EC2 instance
+  a. IAM=Roles=Create Role=AWS Services=UseCase=Codedeploy=Next=Next=NameOfRole=CreateRole
+  b. Ec2=actions=Security=modifyIAMRole=SelectRole=UpdateRole
+4.Install Codedeploy agent
+  a. Login to ubuntu server using EC2 instance
+  b. AWS Document for code deploy agent install for ubuntu server= https://docs.aws.amazon.com/codedeploy/latest/userguide/codedeploy-agent-operations-install-ubuntu.html
+  c. In Terminal= sudo apt update
+              sudo apt install ruby-full
+              sudo apt install wget
+              cd /home/ubuntu
+               wget https://aws-codedeploy-us-east-1.s3.us-east-1.amazonaws.com/latest/install
+              chmod +x ./install
+              sudo ./install auto > /tmp/logfile
+ 
+  d. Goto Terminal= Restart the service= sudo service codedeploy-agent restart
+                                     	                                     sudo service codedeploy-agent status
+5.Create an application
+  a. Developers tools=codedeploy=applications=create application
+  b. Name=platform=EC2/on-premises=create application
+6.Connect Ec2 to codedeploy(providing target group that is Deployment group)
+  a.Developers tools=codedeploy=applications=create deployment group
+  b.Name=ServiceRole=add role=attachEc2FullAccessPolicy=Deployment Type=inplace=Env Config=AmazonEC2Instance=KeyName=Value=CreateDeploymentGroup.
+
+9. Creating AWS Pipeline: 
+AWS Console Login>search for AWS Codedeploy>left menu click on Pipeline>create pipeline>Provide Pipeline Name> Rest Keep Default>click next>select source provider as BitBucket>Click Connect to Bitbucket>Provide Connection Name>click Connect to Bitbucket>IN Bitbucket app click  install new app> click grant access> Click Connect>give Repo name>and select branch>Rest Keep as default >click next>Skip Build Provider>Provider Deploy Provider as AWS Codedeploy>Select Region>Select Application Name and Group>Click Next>Click Create Pipeline.
+
+10. Creating Different Branches for deployment: Local-server, demo, staging and master
+1.List Local Branches:
+git branch
+2.List All Branches
+git branch -a
+3.List Remote Branches Only:
+git branch -r
+4.Open GitBash and navigate to your local repository:
+cd ///192.168.1.19/PHPApp/digitdefence/msite-php/digidefencerepository (master)
+5.Fetch the latest changes from the remote repository:
+git fetch
+6.Create a new branch:
+git checkout -b local-server
+7.Push the new branch to Bitbucket:
+git push -u origin local-server
+8.Verify the branch has been created on Bitbucket:
+After pushing the branch, visit the Bitbucket repository in the web interface and check that the new branch is listed under the Branches section.
+
+11. Created ./deploy-scripts directory added files in it
+mkdir ./deploy-scripts
+touch deploy-local-server.sh, deploy-demo.sh,deploy-staging.sh
+Given permission executable permission to the files 
+
+
+12. Added BitBucket-Pipeline.yml file, Appspec.yml files
+
+
+image: atlassian/default-image:2
+
+pipelines:
+  default:
+    - step:
+        script:
+          - apt-get update
+          - apt-get install -y zip
+          - zip -r application1.zip .
+          - pipe: atlassian/aws-code-deploy:0.2.5
+            variables:
+              AWS_DEFAULT_REGION: $AWS_DEFAULT_REGION
+              AWS_ACCESS_KEY_ID: $AWS_ACCESS_KEY_ID
+              AWS_SECRET_ACCESS_KEY: $AWS_SECRET_ACCESS_KEY
+              APPLICATION_NAME: $APPLICATION_NAME
+              S3_BUCKET: $S3_BUCKET
+              COMMAND: 'upload'
+              ZIP_FILE: 'application1.zip'
+              VERSION_LABEL: 'my-app-1.0.0'
+              DEBUG: 'True'
+          - pipe: atlassian/aws-code-deploy:0.2.5
+            variables:
+              AWS_DEFAULT_REGION: $AWS_DEFAULT_REGION
+              AWS_ACCESS_KEY_ID: $AWS_ACCESS_KEY_ID
+              AWS_SECRET_ACCESS_KEY: $AWS_SECRET_ACCESS_KEY
+              APPLICATION_NAME: $APPLICATION_NAME
+              DEPLOYMENT_GROUP: $DEPLOYMENT_GROUP
+              S3_BUCKET: $S3_BUCKET
+              COMMAND: 'deploy'
+              WAIT: 'true'
+              VERSION_LABEL: 'my-app-1.0.0'
+              IGNORE_APPLICATION_STOP_FAILURES: 'true'
+              FILE_EXISTS_BEHAVIOR: 'OVERWRITE'
+
+  branches:
+    local-server:
+      - step:
+          name: Deploy to Test
+          deployment: local-server
+          script:
+            - echo "Deploying to Test Environment"
+            - ./deploy-scripts/deploy-local-server.sh
+
+    demo:
+      - step:
+          name: Deploy to Test
+          deployment: demo
+          script:
+            - echo "Deploying to Test Environment"
+            - ./deploy-scripts/deploy-demo.sh
+
+    staging:
+      - step:
+          name: Deploy to Staging
+          deployment: staging
+          script:
+            - echo "Deploying to Staging Environment"
+            - ./deploy-scripts/deploy-staging.sh
+    master:
+      - step:
+          name: Deploy to Production
+          deployment: master
+          script:
+            - echo "Deploying to Production Environment"
+            - ./deploy-scripts/deploy-master.sh
+
+13. Commit, push and check the pipeline status. 
+

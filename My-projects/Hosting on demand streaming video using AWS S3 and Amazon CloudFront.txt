@@ -1,0 +1,75 @@
+Hosting on demand streaming video using AWS S3 and Amazon CloudFront:
+
+1.	Creating S3 bucket
+2.	Upload Video to S3 bucket
+3.	Create a cloudfront origin access entity
+●	Sign in to the AWS Management Console and open the CloudFront console
+●	In the left navigation pane, under the Security section, choose Origin access.
+●	Under the Identities tab, choose Create origin access identity.
+●	Enter a name (for example, S3-OAI) for the new origin access identity
+●	Choose Create.
+
+4.	Create a cloudfront distribution
+●	Sign in to the AWS Management Console and open the CloudFront console
+●	In the left navigation pane, choose Distributions.
+●	Choose Create distribution.
+●	In the Origin section, for Origin domain, choose the domain name of your S3 origin, which starts with the name of the S3 bucket that you created in Step-1
+●	For Origin access, choose Legacy access identities.
+●	Under Origin access identity, choose the origin access identity that you created in step-3.
+●	Under Bucket policy, choose Yes, update the bucket policy.
+●	In the Default cache behavior section, under Viewer protocol policy, choose Redirect HTTP to HTTPS.When you choose this feature, HTTP requests are automatically redirected to HTTPS to secure your website and protect your viewers' data.
+●	For the other settings in the Default cache behaviors section, keep the default values.
+●	At the bottom of the page, choose Create distribution.
+●	On the General tab for your CloudFront distribution, under Details, the value of the Last modified column for your distribution changes from Deploying to the timestamp when the distribution was last modified. This process typically takes a few minutes.
+
+5.	 Review the bucket policy
+●	Sign in to the AWS Management Console and open the Amazon S3 console.
+●	In the left navigation pane, choose Buckets.
+●	In the Buckets list, choose the name of the bucket that you used earlier as the origin of your CloudFront distribution.
+●	Choose the Permissions tab.
+●	In the Bucket policy section, confirm that you see a statement
+
+6.	Access the video through the CloudFront distribution:
+           To create a URL to the S3 video using the CloudFront distribution domain name
+●	Sign in to the AWS Management Console and open the CloudFront console 
+●	In the left navigation pane, choose Distributions.
+●	To get the distribution domain name, do the following:
+a.	In the Origins column, find the correct CloudFront distribution by looking for its origin name, which starts with the S3 bucket that you created in Step-1
+b.	After finding the distribution in the list, widen the Domain name column to copy the domain name value for your CloudFront distribution.
+●	In a new browser tab, paste the distribution domain name that you copied.
+●	Return to the previous browser tab, and open the S3 console
+●	In the left navigation pane, choose Buckets.
+●	In the Buckets list, choose the name of the bucket that you created in step 1.
+●	In the Objects list, choose the name of the video that you uploaded in step-2.
+●	On the object detail page, in the Object overview section, copy the value of the Key. This value is the path to the uploaded video object in the S3 bucket.
+●	Return to the browser tab where you previously pasted the distribution domain name, enter a forward slash (/) after the distribution domain name, and then paste the path to the video that you copied earlier (for example, sample.mp4).
+Now, your S3 video is publicly accessible and hosted through CloudFront at a URL
+
+
+Pricing: 
+1. Estimate Amazon S3 Costs
+Amazon S3 is used for storing your files. Key components of S3 pricing include:
+   Storage Costs: Based on the amount of data stored in S3 per month.
+○	Standard Storage: Typically used for frequently accessed data.
+○	Reduced Redundancy Storage (RRS) or Intelligent-Tiering: These might be more cost-effective depending on access patterns.
+    Data Transfer Costs: While data transferred into S3 is free, data transferred out to  
+       the internet incurs costs.
+        Requests and Data Retrieval Costs: Charges for PUT, GET, and other operations.
+Example Calculation for S3:
+.  	Storage Costs:
+○	Assume you store 1 TB (1,024 GB) of video content.
+○	Standard storage cost is approximately $0.023 per GB (prices may vary).
+○	Monthly storage cost: 1,024 GB * $0.023/GB = $23.55.
+.  	Data Transfer Out:
+○	Assume 5 TB of data transfer out per month.
+○	First 1 GB is free, then it's approximately $0.09 per GB for the next 10 TB.
+○	Cost for 5 TB: (5,000 GB - 1 GB) * $0.09/GB = $449.91.
+  	Requests Costs:
+○	Assume 10 million GET requests.
+○	Standard cost is approximately $0.0004 per GET request.
+○	Monthly cost: 10,000,000 requests * $0.0004 = $4,000.
+2. Estimate Amazon CloudFront Costs
+CloudFront is used to distribute and cache the video content. Key components include:
+●	Data Transfer Out to Internet: Charged based on the amount of data delivered to users.
+○	Rates vary by geographic region.
+HTTP/HTTPS Requests: Charged based on the number of requests for content.

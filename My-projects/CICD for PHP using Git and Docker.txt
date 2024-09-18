@@ -1,0 +1,204 @@
+Document for Step by step procedure to setup CI/CD pipeline for PHP development environment using Docker, Github and git bash on windows. The pipeline triggers from local to production server.
+Pre-requisites:
+Create a github account with a repository to store the PHP source code.
+Install Docker Desktop from official docker website on windows 
+Install Docker composer and it should b accessible from CLI
+Production server:  Ensure  have a production server (Ubuntu on EC2) set up and accessible via SSH
+GitHub Actions Secrets: Set up the SSH key required for deployment to the production server in your GitHub repository settings along with docker username and Password
+Steps: On local machine
+Clone the Github repository 
+# git init
+# git clone <repo path>
+# cd <git repo>
+# mkdir /src > # vi index.php > 
+<?php
+echo "Welcome, Docker!";
+?>
+
+Prepare docker setup: Create a docker file to build PHP application
+Dockerfile: 
+FROM php:8.2-apache
+RUN docker-php-ext-install mysqli pdo pdo_mysql
+COPY src/ /var/www/html/
+
+Create docker-compose.yml file: defines services (e.g web server and db)
+version: '3.8'
+services:
+  web:
+    build: .
+    ports:
+      - "8080:80"
+    volumes:
+      - ./src:/var/www/html
+  phpweb:
+    image: dhanshree111/phpweb:002
+    ports:
+      - "8081:80" 
+  db:
+    image: mysql:5.7
+    environment:
+      MYSQL_ROOT_PASSWORD: 1234
+      MYSQL_DATABASE: localhost
+
+           (This file will create 3 images, using those 3 images 3 containers will run)
+
+
+Build and test locally:
+# docker-compose build
+# docker-compose up -d
+# docker images
+# docker ps
+Set up github action workflow for build and deployment to production severe.
+# mkdir -p .github/workflows
+# cd  .github/workflows
+# touch ci.yml
+Create a workflow file:
+name: PHP CI/CD Pipeline
+on:
+  push:
+	branches:
+  	- main
+jobs:
+  build:
+	runs-on: ubuntu-latest
+	steps:
+  	- name: Checkout code
+        uses: actions/checkout@v2
+ 
+  	- name: Set up Docker Buildx
+    	uses: docker/setup-buildx-action@v1
+ 
+  	- name: Login to DockerHub
+    	uses: docker/login-action@v1
+    	with:
+      	username: ${{ secrets.DOCKER_USERNAME }}
+    	  password: ${{ secrets.DOCKER_PASSWORD }}
+ 
+  	- name: Build and tag Docker image
+    	run: |
+      	# Build the Docker image with the correct build context (the current directory).
+      	docker build -t phpweb:002 .
+      	# Tag the image with the repository name.
+      	docker tag phpweb:002 dhanshree111/phpweb:002
+ 
+  	- name: Verify image is built locally
+    	run: docker images
+ 
+  	- name: Push Docker image to Docker Hub
+    	run: |
+      	docker push dhanshree111/phpweb:002
+ 
+  deploy:
+	runs-on: ubuntu-latest
+	needs: build
+	steps:
+  	- name: SSH to Production Server
+    	uses: appleboy/ssh-action@v0.1.3 
+    	with:
+      	host: ${{ secrets.PRODUCTION_SERVER_IP }}
+      	username: ${{ secrets.PRODUCTION_SERVER_USER }}
+      	key: ${{ secrets.PRODUCTION_SERVER_SSH_KEY }}
+      	port: 22
+      	timeout: 60s
+      	command_timeout: 15m
+      	script: |
+        	echo "Checking Docker and Docker Compose versions..."
+        	docker --version
+        	docker-compose --version
+ 
+        	echo "Navigating to the application directory..."
+        	cd /var/www/my-app || exit 1
+ 
+        	echo "Stopping current containers..."
+        	docker-compose down || echo "No containers running, skipping."
+ 
+        	echo "Pulling new images from Docker Hub..."
+        	docker-compose pull
+ 
+        	echo "Building and starting containers..."
+	        docker-compose up -d --build
+ 
+        	echo "Checking running containers..."
+        	docker ps
+ 
+        	echo "Checking for exited or dead containers..."
+        	docker ps -a --filter "status=exited" --filter "status=dead"
+
+Configure Secrets in GitHub
+            Go to your GitHub repository Settings > Secrets and variables > actions> add repository 
+            secretes> DOCKER_USERNAME:  DockerHub username.
+DOCKER_PASSWORD:  DockerHub password.
+PRODUCTION_SERVER_IP: The IP address of the production server.
+PRODUCTION_SERVER_USER: The SSH user for  production server.
+PRODUCTION_SERVER_SSH_KEY: The private SSH key for passwordless login to the production server. (PHP.pem)
+Convert .ppk file to .ppm using puttygen to copy SSH key in secrets
+# chmod 400 PHP.pem (change file permissions)
+# ssh-keygen -y -f PHP.pem > public-key.pub
+# cat public-key.pub (copy the key)
+SSH to production server: On Production server
+            # ssh -i PHP.pem ubuntu@public ip
+# cd .ssh
+# chmod 700 ~/.ssh
+# touch authorized_keys
+   Copy the content of id_rsa.pub to the ~/.ssh/authorized_keys file on your
+    production server.
+# chmod 600 ~/.ssh/authorized_keys
+# sudo systemctl restart ssh
+# cd ..
+# mkdir -p /var/www/my-app
+# sudo vi /etc/ssh/sshd_config
+# cd .ssh
+# sudo vi /etc/ssh/sshd_config (add following lines)
+Include /etc/ssh/sshd_config.d/*.conf
+PubkeyAuthentication yes
+AuthorizedKeysFile     .ssh/authorized_keys
+PubkeyAcceptedAlgorithms +ssh-rsa
+# sudo systemctl status ssh
+# sudo systemctl restart ssh
+Initialize git: (.git file was missing)
+# git init
+# ls -la /var/www/my-app/.git
+# sudo chown -R ubuntu:ubuntu /var/www/my-app
+# sudo chmod -R 755 /var/www/my-app
+# cd /home/Ubuntu
+On local machine:
+# git add.
+# git commit –m “message”
+# git push
+Possible Errors: 
+Docker Version compatibility: make sure on local as well as on production docker and docker compose version is updated
+Python Library Conflicts: due to a version mismatch between Docker Compose dependencies, Try upgrading the relevant Python libraries on EC2 instance
+SSH action is unable to connect to the remote server: configures the UFW (Uncomplicated Firewall) to allow incoming SSH connections. UFW is a simple interface for managing iptables firewall rules. And activate the firewall
+# sudo ufw status
+# sudo ufw allow ssh
+# sudo ufw enable
+The permission denied while trying to connect to the Docker daemon socket error: # sudo usermod -aG docker $USER
+# ls -l /var/run/docker.sock
+# sudo chmod 660 /var/run/docker.sock
+# sudo chown root:docker /var/run/docker.sock
+ 
+Try pushing from local, once the deployment successfully completes, the ci.yml file executes pushing the built images to docker hub as central repo and production server will pull the images and run as container. 
+Check with the port mentioned in docker-compose.yml for web application, it should echo the content.
+
+Task 2
+2. Created a docker image to run the container for eflot:
+Open gitbash terminal>cd to eflot source code folder>login to docker
+      $ docker login
+      $ vi Dockerfile
+         # Use a base image with PHP and Apache
+         FROM php:8.2-apache
+
+        # Copy the source code into the container
+       COPY . /var/www/html/
+
+       # Set permissions (optional)
+       RUN chown -R www-data:www-data /var/www/html/
+   $ docker build -t eflotrepo . (build the image)
+   $ docker images (check image)
+   $ docker run -d -p 8082:80 eflotrepo (run the container using that image)
+   $ docker ps (check running container)
+   $ winpty docker exec -it 2d4074289a02 bash (login to the container, check for files)
+  Open docker desktop> click on the container> test the website locally on  8082:80 port.
+    
+
+
